@@ -539,6 +539,41 @@ body{
   font-family:'Archivo',sans-serif;
 }
 .sheet input:focus{ outline:none; border-color:var(--amber); }
+.autocomplete-wrap{
+  position:relative;
+}
+.autocomplete-list{
+  display:none;
+  position:absolute;
+  left:0; right:0;
+  top:calc(100% + 4px);
+  background:var(--asphalt-3);
+  border:1px solid var(--line);
+  border-radius:12px;
+  overflow:hidden;
+  z-index:10;
+  max-height:220px;
+  overflow-y:auto;
+  box-shadow:0 8px 20px rgba(0,0,0,0.4);
+}
+.autocomplete-list.show{ display:block; }
+.autocomplete-item{
+  padding:11px 14px;
+  font-size:13.5px;
+  color:var(--paper-dim);
+  border-bottom:1px solid var(--line);
+  cursor:pointer;
+  line-height:1.4;
+}
+.autocomplete-item:last-child{ border-bottom:none; }
+.autocomplete-item:active{ background:var(--asphalt-2); }
+.autocomplete-item .main{ color:var(--paper); font-weight:600; display:block; }
+.autocomplete-item .secondary{ color:var(--paper-dimmer); font-size:12px; }
+.autocomplete-loading{
+  padding:11px 14px;
+  font-size:12.5px;
+  color:var(--paper-dimmer);
+}
 .sheet-actions{
   display:flex;
   gap:10px;
@@ -644,9 +679,15 @@ body{
   <div class="sheet">
     <h3>New Route</h3>
     <label>From</label>
-    <input id="newFrom" placeholder="Start address">
+    <div class="autocomplete-wrap">
+      <input id="newFrom" placeholder="Start typing an address…" autocomplete="off">
+      <div class="autocomplete-list" id="fromSuggestions"></div>
+    </div>
     <label>To</label>
-    <input id="newTo" placeholder="Destination address">
+    <div class="autocomplete-wrap">
+      <input id="newTo" placeholder="Start typing an address…" autocomplete="off">
+      <div class="autocomplete-list" id="toSuggestions"></div>
+    </div>
     <div class="sheet-status" id="sheetStatus"></div>
     <div class="sheet-actions">
       <button class="sheet-btn cancel" id="cancelSheet">Cancel</button>
@@ -768,10 +809,107 @@ function openSheet(){
   document.getElementById('newFrom').value = '';
   document.getElementById('newTo').value = '';
   document.getElementById('sheetStatus').textContent = '';
+  selectedAddr.from = null;
+  selectedAddr.to = null;
+  hideSuggestions('from');
+  hideSuggestions('to');
   sheetOverlay.classList.add('show');
 }
 document.getElementById('cancelSheet').onclick = () => sheetOverlay.classList.remove('show');
 sheetOverlay.onclick = (e) => { if(e.target === sheetOverlay) sheetOverlay.classList.remove('show'); };
+
+/* ---------------- Address autocomplete ----------------
+   Debounced live search against Nominatim (same free service already
+   used for geocoding) as the person types, so they can tap a suggestion
+   instead of typing a full, exact address. Tapping a suggestion stores
+   its lat/lon directly (selectedAddr), so "Add Route" can skip a
+   redundant geocode call for that field — but if someone types a full
+   address and never taps a suggestion, Add Route still falls back to
+   geocoding what they typed, so manual entry keeps working too. */
+const selectedAddr = { from: null, to: null };
+const autocompleteTimers = { from: null, to: null };
+const ACTIVE_TYPING_DEBOUNCE_MS = 350;
+
+function hideSuggestions(which){
+  const list = document.getElementById(which === 'from' ? 'fromSuggestions' : 'toSuggestions');
+  list.classList.remove('show');
+  list.innerHTML = '';
+}
+
+async function searchAddressSuggestions(query){
+  if(!query || query.trim().length < 3) return [];
+  const url = 'https://nominatim.openstreetmap.org/search?format=json&addressdetails=0&limit=5&q=' + encodeURIComponent(query);
+  try{
+    const res = await fetch(url, { headers: { 'Accept-Language':'en' } });
+    if(!res.ok) return [];
+    const data = await res.json();
+    return data.map(d => ({
+      label: d.display_name,
+      lat: parseFloat(d.lat),
+      lon: parseFloat(d.lon)
+    }));
+  }catch(e){
+    return []; // fail quietly — autocomplete is a convenience, not required
+  }
+}
+
+function renderSuggestions(which, results){
+  const list = document.getElementById(which === 'from' ? 'fromSuggestions' : 'toSuggestions');
+  const input = document.getElementById(which === 'from' ? 'newFrom' : 'newTo');
+  if(!results.length){
+    list.classList.remove('show');
+    list.innerHTML = '';
+    return;
+  }
+  list.innerHTML = '';
+  results.forEach(r => {
+    const item = document.createElement('div');
+    item.className = 'autocomplete-item';
+    // Split into a bolder first part and dimmer remainder for scannability
+    const parts = r.label.split(',');
+    const main = parts[0];
+    const secondary = parts.slice(1).join(',').trim();
+    item.innerHTML = `<span class="main">${main}</span>${secondary ? `<span class="secondary">${secondary}</span>` : ''}`;
+    item.onclick = () => {
+      input.value = r.label;
+      selectedAddr[which] = { lat: r.lat, lon: r.lon };
+      hideSuggestions(which);
+    };
+    list.appendChild(item);
+  });
+  list.classList.add('show');
+}
+
+function wireAddressAutocomplete(which){
+  const input = document.getElementById(which === 'from' ? 'newFrom' : 'newTo');
+  input.addEventListener('input', () => {
+    // Any manual retyping invalidates a previously-selected suggestion —
+    // otherwise "Add Route" could silently use stale coordinates that
+    // don't match the new text.
+    selectedAddr[which] = null;
+    clearTimeout(autocompleteTimers[which]);
+    const query = input.value;
+    if(query.trim().length < 3){
+      hideSuggestions(which);
+      return;
+    }
+    autocompleteTimers[which] = setTimeout(async () => {
+      const results = await searchAddressSuggestions(query);
+      // Guard against the input having changed again while this
+      // particular search was in flight (avoids flickering stale results).
+      if(input.value === query){
+        renderSuggestions(which, results);
+      }
+    }, ACTIVE_TYPING_DEBOUNCE_MS);
+  });
+  input.addEventListener('blur', () => {
+    // Slight delay so a tap on a suggestion (which also fires blur)
+    // still registers its click before the list disappears.
+    setTimeout(() => hideSuggestions(which), 150);
+  });
+}
+wireAddressAutocomplete('from');
+wireAddressAutocomplete('to');
 
 document.getElementById('saveSheet').onclick = async () => {
   const fromAddr = document.getElementById('newFrom').value.trim();
@@ -780,7 +918,11 @@ document.getElementById('saveSheet').onclick = async () => {
   if(!fromAddr || !toAddr){ status.textContent = 'Enter both addresses.'; return; }
   status.innerHTML = 'Locating addresses <span class="dots-loading"><span></span><span></span><span></span></span>';
   try{
-    const [fromGeo, toGeo] = await Promise.all([geocode(fromAddr), geocode(toAddr)]);
+    // Use coordinates from a tapped suggestion when available — skips a
+    // redundant geocode call and is also more accurate, since it's the
+    // exact match the person picked rather than a fresh best-guess geocode.
+    const fromGeo = selectedAddr.from || await geocode(fromAddr);
+    const toGeo = selectedAddr.to || await geocode(toAddr);
     if(!fromGeo || !toGeo){
       status.textContent = "Couldn't find one of those addresses. Try adding city/state.";
       return;
@@ -1308,37 +1450,49 @@ function renderLanes(tollResults, driveInfo, when, driveError){
   // Each open toll corridor becomes its OWN lane — these are alternative
   // ways to make the trip, not stacked tolls on a single trip. "Both"
   // means "show me each option side by side," not "pay both."
-  // baseMin (from the routing engine) reflects the FAST, toll-paying trip.
-  // The free-route time is modeled as slower by an amount that scales
-  // with how congested/expensive the toll currently is.
+  //
+  // IMPORTANT: all toll lanes currently share the same baseMin (the
+  // routing engine doesn't distinguish which highway you'd take), so the
+  // "free route" benchmark must also be a single shared number — NOT a
+  // separate one computed per-lane from that lane's own price. Earlier
+  // logic computed each lane's own "freeEquivalent" using that lane's
+  // price to drive the intensity, which meant a pricier toll always
+  // looked like it saved more time even when both lanes had identical
+  // drive times. That's backwards: if two toll options get you there
+  // equally fast, the cheaper one is strictly better, full stop.
   const openTolls = tollResults.filter(r => r.open);
-  const lanes = openTolls.map(r => {
-    const intensity = r.price / 30;
+
+  // Use the single most congested/expensive corridor among the options
+  // shown to estimate ONE shared "what if you skip every toll" time —
+  // this is the most defensible single free-route benchmark when the
+  // routing engine can't tell corridors apart.
+  let freeMin = baseMin;
+  if(openTolls.length){
+    const maxPrice = Math.max(...openTolls.map(r => r.price));
+    const intensity = maxPrice / 30;
     const savingsFactor = Math.min(0.42, 0.12 + intensity*0.32);
-    const freeEquivalent = Math.round(baseMin * (1 + savingsFactor*0.9));
-    return {
-      corridor: r.corridor,
-      tollMin: baseMin,
-      freeMinEquivalent: freeEquivalent,
-      minSaved: freeEquivalent - baseMin,
-      price: r.price
-    };
-  });
+    freeMin = Math.round(baseMin * (1 + savingsFactor*0.9));
+  }
 
-  // The displayed "No-Toll Route" time should reflect the SLOWEST
-  // (most pessimistic) free-route estimate across whichever corridors
-  // are being compared — that's the honest worst case if you skip
-  // every toll option shown. If no toll is open, the free route is
-  // just the normal drive time.
-  const freeMin = lanes.length
-    ? Math.max(...lanes.map(l => l.freeMinEquivalent))
-    : baseMin;
+  const lanes = openTolls.map(r => ({
+    corridor: r.corridor,
+    tollMin: baseMin,
+    price: r.price,
+    minSaved: freeMin - baseMin
+  }));
 
-  // Best toll option (most minutes saved per dollar) gets the "winner" highlight,
-  // but only if it actually beats the free route.
+  // Rank lanes by value: prefer whichever saves the most time; if two
+  // lanes save the same time (which, given the shared baseMin above,
+  // is currently always true when comparing corridors against each
+  // other), the cheaper price wins. This is what fixes the "I-66 was
+  // pricier but still won" bug — with equal time savings, price now
+  // correctly decides the winner.
   let bestLane = null;
   lanes.forEach(l => {
-    if(l.minSaved > 0 && (!bestLane || l.minSaved > bestLane.minSaved)) bestLane = l;
+    if(l.minSaved <= 0) return; // doesn't beat the free route at all
+    if(!bestLane) { bestLane = l; return; }
+    if(l.minSaved > bestLane.minSaved) { bestLane = l; return; }
+    if(l.minSaved === bestLane.minSaved && l.price < bestLane.price) { bestLane = l; }
   });
 
   let html = '';
@@ -1383,12 +1537,20 @@ function renderLanes(tollResults, driveInfo, when, driveError){
 
   if(lanes.length > 1){
     // Comparing multiple corridors against each other AND the free route.
-    const sorted = [...lanes].sort((a,b) => b.minSaved - a.minSaved);
-    const best = sorted[0];
-    if(best.minSaved > 0){
-      const perMin = best.price / best.minSaved;
+    // Reuse bestLane (already computed above with the price tiebreak)
+    // rather than re-sorting, so this can't drift out of sync with the
+    // highlighted "winner" lane shown above.
+    if(bestLane){
+      const perMin = bestLane.minSaved > 0 ? (bestLane.price / bestLane.minSaved) : null;
+      // Check if other lanes tied on time but cost more — worth calling
+      // out explicitly, since that's the scenario that was misleading before.
+      const tiedButPricier = lanes.some(l => l.corridor !== bestLane.corridor && l.minSaved === bestLane.minSaved && l.price > bestLane.price);
       verdictEl.className = 'verdict';
-      verdictEl.innerHTML = `<b>${best.corridor}</b> looks like the better toll option right now — paying $${best.price.toFixed(2)} saves about <b>${best.minSaved} minutes</b> ($${perMin.toFixed(2)}/min) versus the free route.`;
+      if(tiedButPricier){
+        verdictEl.innerHTML = `<b>${bestLane.corridor}</b> is the better toll option right now — same drive time as the other corridor, but cheaper at $${bestLane.price.toFixed(2)}.`;
+      } else {
+        verdictEl.innerHTML = `<b>${bestLane.corridor}</b> looks like the better toll option right now — paying $${bestLane.price.toFixed(2)} saves about <b>${bestLane.minSaved} minutes</b>${perMin !== null ? ` ($${perMin.toFixed(2)}/min)` : ''} versus the free route.`;
+      }
     } else {
       verdictEl.className = 'verdict bad';
       verdictEl.innerHTML = `Neither toll option looks worth it right now — the <b>free route</b> is about as fast.`;
