@@ -706,6 +706,7 @@ body{
       <button class="sheet-btn cancel" id="clearKeyBtn">Remove Key</button>
       <button class="sheet-btn save" id="saveKeyBtn">Save</button>
     </div>
+    <div class="sheet-status" style="margin-top:14px;">Tip: press and hold a saved route's tab at the top to delete it.</div>
     <div class="sheet-actions" style="margin-top:8px;">
       <button class="sheet-btn cancel" id="closeSettingsBtn" style="flex:1;">Close</button>
     </div>
@@ -772,6 +773,7 @@ function renderTabs(){
     pill.className = 'route-pill' + (r.id === activeRouteId ? ' active' : '');
     pill.textContent = r.label;
     pill.onclick = () => { activeRouteId = r.id; renderTabs(); refreshAll(); };
+    wireLongPressDelete(pill, r);
     wrap.appendChild(pill);
   });
   const addPill = document.createElement('div');
@@ -779,6 +781,64 @@ function renderTabs(){
   addPill.textContent = '+ Add';
   addPill.onclick = openSheet;
   wrap.appendChild(addPill);
+}
+
+/* ---------------- Delete a saved route (long-press) ----------------
+   Tapping a pill switches to that route (existing behavior, unchanged).
+   Holding a pill for ~550ms triggers a delete confirmation instead —
+   this keeps every pill clean with no permanent "x" button cluttering
+   the row, while still making deletion easy to discover once you know
+   the gesture. Works for any route, including the default Home → EPA
+   one, since the person may genuinely not want it. */
+const LONG_PRESS_MS = 550;
+function wireLongPressDelete(pill, route){
+  let timer = null;
+  let firedLongPress = false;
+
+  const start = (e) => {
+    firedLongPress = false;
+    pill.style.opacity = '0.6';
+    timer = setTimeout(() => {
+      firedLongPress = true;
+      pill.style.opacity = '1';
+      confirmDeleteRoute(route);
+    }, LONG_PRESS_MS);
+  };
+  const cancel = () => {
+    clearTimeout(timer);
+    pill.style.opacity = '1';
+  };
+
+  pill.addEventListener('touchstart', start, { passive: true });
+  pill.addEventListener('touchend', cancel);
+  pill.addEventListener('touchmove', cancel);
+  pill.addEventListener('touchcancel', cancel);
+  pill.addEventListener('mousedown', start);
+  pill.addEventListener('mouseup', cancel);
+  pill.addEventListener('mouseleave', cancel);
+
+  // Suppress the normal tap-to-switch click if this press just
+  // triggered a long-press delete, so it doesn't also switch routes
+  // right before/after showing the delete confirmation.
+  pill.addEventListener('click', (e) => {
+    if(firedLongPress){ e.stopPropagation(); e.preventDefault(); firedLongPress = false; }
+  }, true);
+}
+
+function confirmDeleteRoute(route){
+  const ok = window.confirm(`Delete "${route.label}"? This can't be undone.`);
+  if(!ok) return;
+  routes = routes.filter(r => r.id !== route.id);
+  if(!routes.length){
+    // Never leave the app with zero routes — recreate the default.
+    routes = DEFAULT_ROUTES.map(r => ({...r}));
+  }
+  saveRoutes();
+  if(activeRouteId === route.id){
+    activeRouteId = routes[0].id;
+  }
+  renderTabs();
+  refreshAll();
 }
 
 /* ---------------- When toggle ---------------- */
