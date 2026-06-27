@@ -1320,18 +1320,62 @@ function i395TypicalPrice(d, distanceMi){
 }
 
 /* ---------------- Live I-66 attempt (best-effort) ----------------
-   NOTE: I have not been able to confirm a stable, public endpoint
-   for vai66tolls.com's live pricing data from this environment (it's
-   a JS-driven calculator backed by an undocumented API; testing it
-   needs a real browser's network inspector, which I don't have here).
-   This function is a hook for that — wire in the real endpoint once
-   you've found it (open vai66tolls.com in Safari/Chrome, use "Inspect"
-   or a proxy like Charles/Proxyman, run the calculator, and copy the
-   request URL it fires). Until then this safely returns null every
-   time, so the app always falls back to the typical-pricing model
-   below — nothing is faked or guessed in its place. */
-async function tryLiveI66(){
-  return null; // not yet wired to a confirmed endpoint — see note above
+   Calls vai66tolls.com's own same-origin pricing endpoint directly —
+   confirmed working via real browser network capture. Returns null on
+   any failure (network issue, unexpected response shape, site down),
+   so the app always falls safely back to the typical-pricing model;
+   nothing here is allowed to throw and break the rest of the page.
+
+   Entry/exit IDs are fixed to the Annandale → DC commute pair
+   confirmed by the person directly against the live site:
+     bIntId=3  -> "I-495 Express Lanes N" (entry, eastbound toward DC)
+     eIntId=16 -> "Washington" (exit)
+   For westbound (DC -> home) trips this pairing is reversed, since the
+   westbound calculator runs the opposite direction along the corridor. */
+const I66_LIVE_IDS = {
+  EB: { bIntId: 3, eIntId: 16 },   // I-495 Express Lanes N -> Washington
+  WB: { bIntId: 16, eIntId: 3 }    // Washington -> I-495 Express Lanes N
+};
+
+function formatDateForI66(d){
+  const mm = String(d.getMonth()+1).padStart(2,'0');
+  const dd = String(d.getDate()).padStart(2,'0');
+  const yyyy = d.getFullYear();
+  return `${mm}/${dd}/${yyyy}`;
+}
+function formatTimeForI66(d){
+  let h = d.getHours();
+  const m = String(d.getMinutes()).padStart(2,'0');
+  const ampm = h >= 12 ? 'pm' : 'am';
+  h = h % 12;
+  if(h === 0) h = 12;
+  return `${h} : ${m} ${ampm}`;
+}
+
+async function tryLiveI66(when, direction){
+  const ids = I66_LIVE_IDS[direction];
+  if(!ids) return null; // unknown direction — shouldn't happen, but stay safe
+
+  const params = new URLSearchParams({
+    handler: 'TollCalcPartial',
+    bIntId: ids.bIntId,
+    eIntId: ids.eIntId,
+    datePicked: formatDateForI66(when),
+    timePicked: formatTimeForI66(when),
+    rbEastVal: direction === 'EB' ? 'true' : 'false',
+    isCurrent: 'true'
+  });
+  const url = `https://vai66tolls.com/Index?${params.toString()}`;
+
+  try{
+    const res = await fetch(url);
+    if(!res.ok) return null;
+    const data = await res.json();
+    if(typeof data.decToll !== 'number') return null;
+    return data.decToll;
+  }catch(e){
+    return null; // any failure here is silent — typical-pricing model covers it
+  }
 }
 
 /* ---------------- Main refresh ---------------- */
@@ -1416,7 +1460,7 @@ async function computeTolls(corridors, when, driveInfo){
       }
       let live = null;
       const isNow = Math.abs(new Date() - when) < 5*60*1000;
-      if(isNow) live = await tryLiveI66();
+      if(isNow) live = await tryLiveI66(when, typical.direction);
       results.push({
         corridor, open:true,
         price: live !== null ? live : typical.price,
@@ -1633,7 +1677,7 @@ function renderLanes(tollResults, driveInfo, when, driveError){
 /* ---------------- Source note ---------------- */
 function renderSourceNote(){
   document.getElementById('sourceNote').innerHTML =
-    `<span class="dot est"></span>All prices are typical estimates from time-of-day patterns — live VDOT pricing isn't connected yet.<br>Estimates only — actual tolls may vary. Not affiliated with VDOT or Transurban.`;
+    `<span class="dot live"></span>I-66 uses live VDOT pricing when available &nbsp;&nbsp; <span class="dot est"></span>I-395 is a typical-pricing estimate<br>Estimates only — actual tolls may vary. Not affiliated with VDOT or Transurban.`;
 }
 
 /* ---------------- Init ---------------- */
