@@ -1,0 +1,1441 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Lane Sense">
+<meta name="theme-color" content="#14171a">
+<title>Lane Sense — I-66 / I-395 Toll Planner</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Archivo:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --asphalt:#14171a;
+  --asphalt-2:#1d2125;
+  --asphalt-3:#272c31;
+  --line:#3a4046;
+  --highway-green:#1f5c45;
+  --highway-green-light:#2e7d5c;
+  --amber:#d98a1f;
+  --amber-bright:#f0a93f;
+  --redorange:#c4502a;
+  --redorange-bright:#e2643a;
+  --paper:#f2f0ea;
+  --paper-dim:#b9b6ad;
+  --paper-dimmer:#8b8980;
+  --radius:18px;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+html,body{margin:0;padding:0;}
+body{
+  background:var(--asphalt);
+  background-image:
+    radial-gradient(ellipse 800px 400px at 50% -10%, rgba(46,125,92,0.12), transparent 60%);
+  color:var(--paper);
+  font-family:'Archivo',sans-serif;
+  min-height:100vh;
+  -webkit-font-smoothing:antialiased;
+  overscroll-behavior-y:none;
+  padding-bottom:env(safe-area-inset-bottom);
+}
+.app{
+  max-width:480px;
+  margin:0 auto;
+  padding:env(safe-area-inset-top) 16px 32px;
+  min-height:100vh;
+}
+
+/* ---- Header ---- */
+.app-header{
+  display:flex;
+  align-items:baseline;
+  justify-content:space-between;
+  padding:18px 4px 14px;
+}
+.app-header h1{
+  font-family:'Oswald',sans-serif;
+  font-weight:600;
+  font-size:22px;
+  letter-spacing:0.01em;
+  margin:0;
+  color:var(--paper);
+}
+.app-header h1 .accent{ color:var(--amber-bright); }
+.app-header .clock{
+  font-family:'JetBrains Mono',monospace;
+  font-size:12.5px;
+  color:var(--paper-dimmer);
+  letter-spacing:0.02em;
+}
+.header-right{
+  display:flex;
+  align-items:center;
+  gap:10px;
+}
+.gear-btn{
+  background:var(--asphalt-2);
+  border:1px solid var(--line);
+  color:var(--paper-dim);
+  width:30px;height:30px;
+  border-radius:9px;
+  font-size:15px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  cursor:pointer;
+  padding:0;
+}
+.gear-btn:active{ background:var(--asphalt-3); }
+.gear-btn.has-key{ border-color:var(--highway-green-light); color:#5fd9a8; }
+
+/* ---- Route Card ---- */
+.route-card{
+  background:var(--asphalt-2);
+  border:1px solid var(--line);
+  border-radius:var(--radius);
+  padding:16px;
+  margin-bottom:14px;
+}
+.route-tabs{
+  display:flex;
+  gap:6px;
+  margin-bottom:14px;
+  overflow-x:auto;
+  scrollbar-width:none;
+  padding-bottom:2px;
+}
+.route-tabs::-webkit-scrollbar{display:none;}
+.route-pill{
+  flex:0 0 auto;
+  background:var(--asphalt-3);
+  border:1px solid var(--line);
+  color:var(--paper-dim);
+  font-family:'Archivo',sans-serif;
+  font-weight:600;
+  font-size:13px;
+  padding:8px 14px;
+  border-radius:100px;
+  cursor:pointer;
+  white-space:nowrap;
+  transition:all .15s ease;
+}
+.route-pill.active{
+  background:var(--highway-green);
+  border-color:var(--highway-green-light);
+  color:#fff;
+}
+.route-pill.add-new{
+  color:var(--amber-bright);
+  border-style:dashed;
+}
+
+.addr-row{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  margin:10px 0;
+}
+.addr-dot{
+  width:9px;height:9px;border-radius:50%;
+  flex:0 0 auto;
+}
+.addr-dot.origin{background:var(--amber-bright);}
+.addr-dot.dest{background:var(--redorange-bright);}
+.addr-line{
+  flex:1;
+  min-width:0;
+}
+.addr-label{
+  font-size:10.5px;
+  text-transform:uppercase;
+  letter-spacing:0.08em;
+  color:var(--paper-dimmer);
+  margin-bottom:1px;
+}
+.addr-text{
+  font-size:14.5px;
+  color:var(--paper);
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+.addr-connector{
+  width:9px;
+  display:flex;
+  justify-content:center;
+  margin-left:-1px;
+}
+.addr-connector::before{
+  content:'';
+  width:1px;
+  height:14px;
+  background:var(--line);
+}
+
+.route-meta{
+  display:flex;
+  gap:14px;
+  margin-top:12px;
+  padding-top:12px;
+  border-top:1px solid var(--line);
+  font-size:12px;
+  color:var(--paper-dimmer);
+}
+.route-meta span b{ color:var(--paper-dim); font-weight:600; }
+
+/* ---- Corridor picker ---- */
+.corridor-picker{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  margin-bottom:14px;
+  padding:2px 2px;
+}
+.corridor-label{
+  font-size:11.5px;
+  text-transform:uppercase;
+  letter-spacing:0.06em;
+  color:var(--paper-dimmer);
+  font-weight:600;
+  flex:0 0 auto;
+}
+.corridor-options{
+  display:flex;
+  gap:6px;
+  flex:1;
+}
+.corridor-pill{
+  flex:1;
+  text-align:center;
+  background:var(--asphalt-2);
+  border:1px solid var(--line);
+  color:var(--paper-dim);
+  font-weight:700;
+  font-size:12.5px;
+  padding:8px 6px;
+  border-radius:10px;
+  cursor:pointer;
+  transition:all .15s ease;
+  user-select:none;
+}
+.corridor-pill.active{
+  background:var(--amber);
+  border-color:var(--amber-bright);
+  color:#1a1408;
+}
+.corridor-pill.disabled{
+  opacity:0.35;
+  cursor:not-allowed;
+}
+
+/* ---- When/Time control ---- */
+.when-row{
+  display:flex;
+  gap:8px;
+  margin-bottom:14px;
+}
+.when-btn{
+  flex:1;
+  background:var(--asphalt-2);
+  border:1px solid var(--line);
+  border-radius:14px;
+  padding:11px 10px;
+  text-align:center;
+  cursor:pointer;
+  color:var(--paper-dim);
+  font-weight:600;
+  font-size:13px;
+  font-family:'Archivo',sans-serif;
+  transition:all .15s ease;
+}
+.when-btn.active{
+  background:var(--asphalt-3);
+  border-color:var(--amber);
+  color:var(--amber-bright);
+}
+.time-picker-row{
+  display:none;
+  gap:8px;
+  margin-bottom:14px;
+}
+.time-picker-row.show{display:flex;}
+.time-picker-row input{
+  flex:1;
+  background:var(--asphalt-2);
+  border:1px solid var(--line);
+  border-radius:14px;
+  padding:10px 12px;
+  color:var(--paper);
+  font-family:'JetBrains Mono',monospace;
+  font-size:14px;
+}
+.time-picker-row input::-webkit-calendar-picker-indicator{filter:invert(0.8);}
+
+/* ---- Toll signs ---- */
+.signs-wrap{
+  display:flex;
+  flex-direction:column;
+  gap:12px;
+  margin-bottom:16px;
+}
+.toll-sign{
+  position:relative;
+  border-radius:16px;
+  padding:18px 18px 16px;
+  background:linear-gradient(180deg,#0f1113,#0a0c0d);
+  border:1px solid #000;
+  box-shadow:
+    inset 0 0 0 1px rgba(255,255,255,0.03),
+    0 8px 24px rgba(0,0,0,0.35);
+  overflow:hidden;
+}
+.toll-sign::before{
+  content:'';
+  position:absolute;
+  inset:0;
+  background:repeating-linear-gradient(
+    100deg,
+    rgba(255,255,255,0.012) 0px,
+    rgba(255,255,255,0.012) 1px,
+    transparent 1px,
+    transparent 3px
+  );
+  pointer-events:none;
+}
+.sign-top{
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-start;
+  position:relative;
+  z-index:1;
+}
+.sign-route{
+  font-family:'Oswald',sans-serif;
+  font-weight:600;
+  font-size:13px;
+  letter-spacing:0.04em;
+  color:var(--paper-dim);
+  text-transform:uppercase;
+}
+.sign-status{
+  font-size:10px;
+  font-weight:700;
+  letter-spacing:0.06em;
+  text-transform:uppercase;
+  padding:3px 8px;
+  border-radius:6px;
+}
+.sign-status.live{ background:rgba(46,125,92,0.25); color:#5fd9a8; }
+.sign-status.estimate{ background:rgba(217,138,31,0.2); color:var(--amber-bright); }
+.sign-status.closed{ background:rgba(196,80,42,0.2); color:var(--redorange-bright); }
+
+.sign-price-row{
+  display:flex;
+  align-items:baseline;
+  gap:6px;
+  margin:10px 0 4px;
+  position:relative;
+  z-index:1;
+}
+.sign-dollar{
+  font-family:'Oswald',sans-serif;
+  font-weight:500;
+  font-size:28px;
+  color:var(--amber-bright);
+  align-self:flex-start;
+  margin-top:6px;
+}
+.sign-price{
+  font-family:'Oswald',sans-serif;
+  font-weight:700;
+  font-size:64px;
+  line-height:0.9;
+  color:var(--amber-bright);
+  letter-spacing:-0.01em;
+  text-shadow:0 0 18px rgba(240,169,63,0.35);
+}
+.toll-sign.closed .sign-price,
+.toll-sign.closed .sign-dollar{ color:var(--paper-dimmer); text-shadow:none; }
+.sign-price.flicker{ animation:flicker 1.4s ease-in-out; }
+@keyframes flicker{
+  0%{opacity:0;} 15%{opacity:1;} 30%{opacity:0.3;} 45%{opacity:1;}
+}
+
+.sign-sub{
+  font-family:'Archivo',sans-serif;
+  font-size:12.5px;
+  color:var(--paper-dimmer);
+  position:relative;
+  z-index:1;
+}
+.sign-sub b{ color:var(--paper-dim); font-weight:600; }
+
+/* ---- Lane comparison ---- */
+.compare-card{
+  background:var(--asphalt-2);
+  border:1px solid var(--line);
+  border-radius:var(--radius);
+  padding:16px;
+  margin-bottom:14px;
+}
+.compare-title{
+  font-family:'Oswald',sans-serif;
+  font-size:13px;
+  font-weight:600;
+  text-transform:uppercase;
+  letter-spacing:0.06em;
+  color:var(--paper-dim);
+  margin-bottom:14px;
+  display:flex;
+  align-items:center;
+  gap:8px;
+}
+.compare-title::after{
+  content:'';
+  flex:1;
+  height:1px;
+  background:var(--line);
+}
+
+.lanes{
+  position:relative;
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+}
+.lane{
+  display:grid;
+  grid-template-columns:auto 1fr auto;
+  align-items:center;
+  gap:12px;
+  padding:14px;
+  border-radius:14px;
+  background:var(--asphalt-3);
+  border:1px solid var(--line);
+}
+.lane.winner{
+  border-color:var(--highway-green-light);
+  background:linear-gradient(135deg, rgba(46,125,92,0.16), var(--asphalt-3) 60%);
+}
+.lane-icon{
+  width:38px;height:38px;
+  border-radius:10px;
+  display:flex;align-items:center;justify-content:center;
+  font-size:18px;
+  flex:0 0 auto;
+}
+.lane-icon.toll{ background:rgba(217,138,31,0.18); }
+.lane-icon.free{ background:rgba(139,137,128,0.14); }
+.lane-body .lane-name{
+  font-weight:700;
+  font-size:14px;
+  color:var(--paper);
+  margin-bottom:2px;
+}
+.lane-body .lane-detail{
+  font-size:12px;
+  color:var(--paper-dimmer);
+}
+.lane-time{
+  text-align:right;
+  flex:0 0 auto;
+}
+.lane-time .min{
+  font-family:'JetBrains Mono',monospace;
+  font-weight:600;
+  font-size:19px;
+  color:var(--paper);
+}
+.lane-time .min span{ font-size:12px; color:var(--paper-dimmer); font-weight:400; }
+.lane-time .cost{
+  font-family:'JetBrains Mono',monospace;
+  font-size:12px;
+  color:var(--amber-bright);
+  margin-top:2px;
+}
+.lane.winner .lane-time .min{ color:#5fd9a8; }
+
+.verdict{
+  margin-top:14px;
+  padding:13px 14px;
+  border-radius:14px;
+  background:rgba(46,125,92,0.12);
+  border:1px solid rgba(46,125,92,0.35);
+  font-size:13.5px;
+  line-height:1.45;
+  color:var(--paper-dim);
+}
+.verdict b{ color:#5fd9a8; }
+.verdict.bad{
+  background:rgba(196,80,42,0.1);
+  border-color:rgba(196,80,42,0.3);
+}
+.verdict.bad b{ color:var(--redorange-bright); }
+
+/* ---- Data source footer ---- */
+.source-note{
+  font-size:11px;
+  color:var(--paper-dimmer);
+  text-align:center;
+  padding:6px 12px 4px;
+  line-height:1.5;
+}
+.source-note .dot{
+  display:inline-block;
+  width:6px;height:6px;border-radius:50%;
+  margin-right:5px;
+  vertical-align:middle;
+}
+.source-note .dot.live{ background:#5fd9a8; }
+.source-note .dot.est{ background:var(--amber); }
+
+/* ---- New route sheet ---- */
+.sheet-overlay{
+  position:fixed; inset:0;
+  background:rgba(0,0,0,0.55);
+  display:none;
+  align-items:flex-end;
+  justify-content:center;
+  z-index:50;
+  backdrop-filter:blur(2px);
+}
+.sheet-overlay.show{ display:flex; }
+.sheet{
+  background:var(--asphalt-2);
+  border-radius:22px 22px 0 0;
+  border-top:1px solid var(--line);
+  width:100%;
+  max-width:480px;
+  padding:18px 18px calc(24px + env(safe-area-inset-bottom));
+  transform:translateY(100%);
+  transition:transform .25s ease;
+}
+.sheet-overlay.show .sheet{ transform:translateY(0); }
+.sheet h3{
+  font-family:'Oswald',sans-serif;
+  font-size:17px;
+  margin:0 0 14px;
+  color:var(--paper);
+}
+.sheet label{
+  font-size:11px;
+  text-transform:uppercase;
+  letter-spacing:0.07em;
+  color:var(--paper-dimmer);
+  display:block;
+  margin:12px 0 6px;
+}
+.sheet input{
+  width:100%;
+  background:var(--asphalt-3);
+  border:1px solid var(--line);
+  border-radius:12px;
+  padding:12px 14px;
+  color:var(--paper);
+  font-size:14.5px;
+  font-family:'Archivo',sans-serif;
+}
+.sheet input:focus{ outline:none; border-color:var(--amber); }
+.sheet-actions{
+  display:flex;
+  gap:10px;
+  margin-top:18px;
+}
+.sheet-btn{
+  flex:1;
+  text-align:center;
+  padding:13px;
+  border-radius:12px;
+  font-weight:700;
+  font-size:14px;
+  cursor:pointer;
+  border:none;
+}
+.sheet-btn.cancel{ background:var(--asphalt-3); color:var(--paper-dim); }
+.sheet-btn.save{ background:var(--highway-green); color:#fff; }
+.sheet-status{
+  font-size:12px;
+  color:var(--paper-dimmer);
+  margin-top:8px;
+  min-height:16px;
+}
+
+/* ---- Loading ---- */
+.dots-loading{ display:inline-flex; gap:3px; }
+.dots-loading span{
+  width:5px;height:5px;border-radius:50%;
+  background:var(--amber-bright);
+  animation:bounce 1.1s infinite ease-in-out;
+}
+.dots-loading span:nth-child(2){animation-delay:.15s;}
+.dots-loading span:nth-child(3){animation-delay:.3s;}
+@keyframes bounce{ 0%,80%,100%{transform:scale(0.6);opacity:.4;} 40%{transform:scale(1);opacity:1;} }
+
+@media (prefers-reduced-motion: reduce){
+  .sign-price.flicker, .dots-loading span{ animation:none !important; }
+}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <div class="app-header">
+    <h1>Lane<span class="accent">Sense</span></h1>
+    <div class="header-right">
+      <div class="clock" id="clockDisplay">—</div>
+      <button class="gear-btn" id="gearBtn" aria-label="Settings">⚙︎</button>
+    </div>
+  </div>
+
+  <div class="route-card">
+    <div class="route-tabs" id="routeTabs"></div>
+
+    <div class="addr-row">
+      <div class="addr-dot origin"></div>
+      <div class="addr-line">
+        <div class="addr-label">From</div>
+        <div class="addr-text" id="fromText">—</div>
+      </div>
+    </div>
+    <div class="addr-connector"></div>
+    <div class="addr-row">
+      <div class="addr-dot dest"></div>
+      <div class="addr-line">
+        <div class="addr-label">To</div>
+        <div class="addr-text" id="toText">—</div>
+      </div>
+    </div>
+
+    <div class="route-meta" id="routeMeta">
+      <span><b>—</b> mi</span>
+      <span><b>—</b> via</span>
+    </div>
+  </div>
+
+  <div class="corridor-picker" id="corridorPicker">
+    <div class="corridor-label">Which way?</div>
+    <div class="corridor-options" id="corridorOptions"></div>
+  </div>
+
+  <div class="when-row">
+    <div class="when-btn active" data-when="now">Right Now</div>
+    <div class="when-btn" data-when="custom">Pick a Time</div>
+  </div>
+  <div class="time-picker-row" id="timePickerRow">
+    <input type="datetime-local" id="customTime">
+  </div>
+
+  <div class="signs-wrap" id="signsWrap"></div>
+
+  <div class="compare-card">
+    <div class="compare-title">Toll Lane vs Free Route</div>
+    <div class="lanes" id="lanesWrap"></div>
+    <div class="verdict" id="verdict"></div>
+  </div>
+
+  <div class="source-note" id="sourceNote"></div>
+
+</div>
+
+<div class="sheet-overlay" id="sheetOverlay">
+  <div class="sheet">
+    <h3>New Route</h3>
+    <label>From</label>
+    <input id="newFrom" placeholder="Start address">
+    <label>To</label>
+    <input id="newTo" placeholder="Destination address">
+    <div class="sheet-status" id="sheetStatus"></div>
+    <div class="sheet-actions">
+      <button class="sheet-btn cancel" id="cancelSheet">Cancel</button>
+      <button class="sheet-btn save" id="saveSheet">Add Route</button>
+    </div>
+  </div>
+</div>
+
+<div class="sheet-overlay" id="settingsOverlay">
+  <div class="sheet">
+    <h3>Settings</h3>
+    <label>OpenRouteService API Key</label>
+    <input id="orsApiKeyInput" placeholder="Paste your key here" autocapitalize="off" autocorrect="off" spellcheck="false">
+    <div class="sheet-status" id="settingsStatus">Saved only on this device — never sent anywhere except OpenRouteService's API.</div>
+    <div class="sheet-actions">
+      <button class="sheet-btn cancel" id="clearKeyBtn">Remove Key</button>
+      <button class="sheet-btn save" id="saveKeyBtn">Save</button>
+    </div>
+    <div class="sheet-actions" style="margin-top:8px;">
+      <button class="sheet-btn cancel" id="closeSettingsBtn" style="flex:1;">Close</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* =========================================================
+   LANE SENSE — toll + time comparison for I-66 / I-395
+   ========================================================= */
+
+const DEFAULT_ROUTES = [
+  {
+    id: 'home-epa',
+    label: 'Home → EPA',
+    from: { text: '8455 Brass Knob Ct, Annandale, VA 22003', lat: 38.8254, lon: -77.1857 },
+    to:   { text: '1350 Pennsylvania Ave NW, Washington, DC 20004', lat: 38.8939, lon: -77.0245 },
+    userCorridor: 'auto' // 'auto' | 'I-66' | 'I-395' | 'both'
+  }
+];
+
+let routes = loadRoutes();
+let activeRouteId = routes[0].id;
+let whenMode = 'now';
+
+function loadRoutes(){
+  try{
+    const saved = JSON.parse(localStorageSafeGet('lanesense_routes'));
+    if(saved && saved.length) return saved;
+  }catch(e){}
+  return DEFAULT_ROUTES.map(r => ({...r}));
+}
+function saveRoutes(){
+  localStorageSafeSet('lanesense_routes', JSON.stringify(routes));
+}
+// Artifacts disallow localStorage in some contexts; guard safely.
+function localStorageSafeGet(k){
+  try{ return window.localStorage.getItem(k); }catch(e){ return null; }
+}
+function localStorageSafeSet(k,v){
+  try{ window.localStorage.setItem(k,v); }catch(e){}
+}
+
+function activeRoute(){
+  return routes.find(r => r.id === activeRouteId) || routes[0];
+}
+
+/* ---------------- Clock ---------------- */
+function tickClock(){
+  const el = document.getElementById('clockDisplay');
+  const now = new Date();
+  el.textContent = now.toLocaleTimeString('en-US', { hour:'numeric', minute:'2-digit' }) +
+    ' · ' + now.toLocaleDateString('en-US', { weekday:'short' });
+}
+tickClock();
+setInterval(tickClock, 15000);
+
+/* ---------------- Route tabs ---------------- */
+function renderTabs(){
+  const wrap = document.getElementById('routeTabs');
+  wrap.innerHTML = '';
+  routes.forEach(r => {
+    const pill = document.createElement('div');
+    pill.className = 'route-pill' + (r.id === activeRouteId ? ' active' : '');
+    pill.textContent = r.label;
+    pill.onclick = () => { activeRouteId = r.id; renderTabs(); refreshAll(); };
+    wrap.appendChild(pill);
+  });
+  const addPill = document.createElement('div');
+  addPill.className = 'route-pill add-new';
+  addPill.textContent = '+ Add';
+  addPill.onclick = openSheet;
+  wrap.appendChild(addPill);
+}
+
+/* ---------------- When toggle ---------------- */
+document.querySelectorAll('.when-btn').forEach(btn => {
+  btn.onclick = () => {
+    document.querySelectorAll('.when-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    whenMode = btn.dataset.when;
+    const row = document.getElementById('timePickerRow');
+    if(whenMode === 'custom'){
+      row.classList.add('show');
+      if(!document.getElementById('customTime').value){
+        const now = new Date(Date.now() - now_tz_offset());
+        document.getElementById('customTime').value = now.toISOString().slice(0,16);
+      }
+    } else {
+      row.classList.remove('show');
+    }
+    refreshAll();
+  };
+});
+function now_tz_offset(){ return new Date().getTimezoneOffset()*60000*-1; }
+document.getElementById('customTime').addEventListener('change', refreshAll);
+
+/* ---------------- New route sheet ---------------- */
+const sheetOverlay = document.getElementById('sheetOverlay');
+function openSheet(){
+  document.getElementById('newFrom').value = '';
+  document.getElementById('newTo').value = '';
+  document.getElementById('sheetStatus').textContent = '';
+  sheetOverlay.classList.add('show');
+}
+document.getElementById('cancelSheet').onclick = () => sheetOverlay.classList.remove('show');
+sheetOverlay.onclick = (e) => { if(e.target === sheetOverlay) sheetOverlay.classList.remove('show'); };
+
+document.getElementById('saveSheet').onclick = async () => {
+  const fromAddr = document.getElementById('newFrom').value.trim();
+  const toAddr = document.getElementById('newTo').value.trim();
+  const status = document.getElementById('sheetStatus');
+  if(!fromAddr || !toAddr){ status.textContent = 'Enter both addresses.'; return; }
+  status.innerHTML = 'Locating addresses <span class="dots-loading"><span></span><span></span><span></span></span>';
+  try{
+    const [fromGeo, toGeo] = await Promise.all([geocode(fromAddr), geocode(toAddr)]);
+    if(!fromGeo || !toGeo){
+      status.textContent = "Couldn't find one of those addresses. Try adding city/state.";
+      return;
+    }
+    const id = 'r_' + Date.now();
+    const label = shortLabel(fromAddr) + ' → ' + shortLabel(toAddr);
+    routes.push({
+      id, label,
+      from: { text: fromAddr, lat: fromGeo.lat, lon: fromGeo.lon },
+      to: { text: toAddr, lat: toGeo.lat, lon: toGeo.lon },
+      userCorridor: 'auto'
+    });
+    saveRoutes();
+    activeRouteId = id;
+    sheetOverlay.classList.remove('show');
+    renderTabs();
+    refreshAll();
+  }catch(e){
+    status.textContent = 'Something went wrong looking that up. Try again.';
+  }
+};
+function shortLabel(addr){
+  return addr.split(',')[0].slice(0,18);
+}
+
+/* ---------------- Settings sheet (OpenRouteService API key) ---------------- */
+const settingsOverlay = document.getElementById('settingsOverlay');
+const gearBtn = document.getElementById('gearBtn');
+
+function refreshGearState(){
+  if(getApiKey()){
+    gearBtn.classList.add('has-key');
+  } else {
+    gearBtn.classList.remove('has-key');
+  }
+}
+
+function openSettings(){
+  document.getElementById('orsApiKeyInput').value = getApiKey();
+  document.getElementById('settingsStatus').textContent = 'Saved only on this device — never sent anywhere except OpenRouteService\'s API.';
+  settingsOverlay.classList.add('show');
+}
+gearBtn.onclick = openSettings;
+document.getElementById('closeSettingsBtn').onclick = () => settingsOverlay.classList.remove('show');
+settingsOverlay.onclick = (e) => { if(e.target === settingsOverlay) settingsOverlay.classList.remove('show'); };
+
+document.getElementById('saveKeyBtn').onclick = () => {
+  const val = document.getElementById('orsApiKeyInput').value.trim();
+  const status = document.getElementById('settingsStatus');
+  if(!val){
+    status.textContent = 'Paste a key first, or use "Remove Key" to clear it.';
+    return;
+  }
+  setApiKey(val);
+  refreshGearState();
+  status.textContent = 'Saved. Refreshing routes with your OpenRouteService key…';
+  settingsOverlay.classList.remove('show');
+  refreshAll();
+};
+
+document.getElementById('clearKeyBtn').onclick = () => {
+  setApiKey('');
+  document.getElementById('orsApiKeyInput').value = '';
+  refreshGearState();
+  document.getElementById('settingsStatus').textContent = 'Key removed — back to the free routing fallback.';
+  settingsOverlay.classList.remove('show');
+  refreshAll();
+};
+
+/* ---------------- Geocoding (Nominatim) ---------------- */
+const geocodeCache = {};
+async function geocode(address){
+  if(geocodeCache[address]) return geocodeCache[address];
+  const url = 'https://nominatim.openstreetmap.org/search?format=json&limit=1&q=' + encodeURIComponent(address);
+  const res = await fetch(url, { headers: { 'Accept-Language':'en' } });
+  if(!res.ok) return null;
+  const data = await res.json();
+  if(!data.length) return null;
+  const result = { lat: parseFloat(data[0].lat), lon: parseFloat(data[0].lon) };
+  geocodeCache[address] = result;
+  return result;
+}
+
+/* ---------------- API key storage ----------------
+   Stored only in this browser's localStorage — never hardcoded in the
+   file, never sent to me or anyone but OpenRouteService's own API. */
+function getApiKey(){
+  return localStorageSafeGet('lanesense_ors_key') || '';
+}
+function setApiKey(key){
+  localStorageSafeSet('lanesense_ors_key', key || '');
+}
+
+/* ---------------- Routing dispatcher ----------------
+   Uses OpenRouteService if a key is saved (reliable, works directly from
+   a browser — unlike Google's Routes API, which is server-only and blocks
+   browser CORS preflight requests). Falls back to the free OSRM demo
+   server if no key is set. */
+async function getRoute(from, to){
+  const key = getApiKey();
+  if(key){
+    // Don't silently swallow ORS-specific problems (bad key, exceeded
+    // quota) — those need the person's attention, not a silent fallback
+    // that hides the real issue.
+    return await getRouteORS(from, to, key);
+  }
+  return await getRouteOSRM(from, to);
+}
+
+/* ---------------- Routing (OpenRouteService) ----------------
+   Uses a GET request with the key as a query parameter rather than an
+   Authorization header. This matters: an Authorization header always
+   triggers a CORS preflight (OPTIONS) request, and that header must be
+   explicitly whitelisted by the server's CORS config — a wildcard '*'
+   does NOT cover it. If ORS's CORS setup doesn't explicitly list
+   Authorization, the browser blocks the request before it ever reaches
+   their server, which matches the "could not reach" symptom seen here.
+   A GET with the key in the URL avoids a preflight entirely for most
+   browsers, since it only uses default/safelisted headers. */
+async function getRouteORS(from, to, apiKey){
+  const params = new URLSearchParams({
+    api_key: apiKey,
+    start: `${from.lon},${from.lat}`,
+    end: `${to.lon},${to.lat}`
+  });
+  const url = `https://api.openrouteservice.org/v2/directions/driving-car/json?${params.toString()}`;
+  let res;
+  try{
+    res = await fetch(url);
+  }catch(networkErr){
+    throw new Error('Could not reach OpenRouteService — this may still be a CORS/network block, not just a bad key.');
+  }
+  if(res.status === 403){
+    throw new Error('OpenRouteService rejected the key (403) — double check you copied it correctly in Settings.');
+  }
+  if(res.status === 429){
+    throw new Error('OpenRouteService daily/rate limit reached (429) — try again later, or wait a bit between checks.');
+  }
+  if(res.status === 400){
+    let detail = '';
+    try{ const j = await res.json(); detail = j.error && j.error.message ? ': ' + j.error.message : ''; }catch(e){}
+    throw new Error('OpenRouteService rejected the request (400)' + detail);
+  }
+  if(!res.ok){
+    throw new Error(`OpenRouteService returned HTTP ${res.status}`);
+  }
+  const data = await res.json();
+  if(!data.routes || !data.routes.length){
+    throw new Error('OpenRouteService found no drivable route between these addresses.');
+  }
+  const r = data.routes[0];
+  return {
+    durationMin: Math.round(r.summary.duration/60),
+    distanceMi: r.summary.distance / 1609.34,
+    source: 'ors'
+  };
+}
+
+/* ---------------- Routing (OSRM fallback, no key required) ---------------- */
+async function getRouteOSRM(from, to){
+  const url = `https://router.project-osrm.org/route/v1/driving/${from.lon},${from.lat};${to.lon},${to.lat}?overview=false&alternatives=false`;
+  let res;
+  try{
+    res = await fetch(url);
+  }catch(networkErr){
+    // fetch() itself throwing (not just a bad status) almost always means
+    // the request never reached the server — blocked by CORS, no network,
+    // or the host refused the connection entirely.
+    throw new Error('Network/CORS — request to the free routing server was blocked or never sent. Add an OpenRouteService key in Settings for more reliable routing.');
+  }
+  if(res.status === 429){
+    throw new Error('Rate limited (429) — too many requests to the free routing server. Add an OpenRouteService key in Settings to avoid this.');
+  }
+  if(!res.ok){
+    throw new Error(`Routing server returned HTTP ${res.status}`);
+  }
+  let data;
+  try{
+    data = await res.json();
+  }catch(parseErr){
+    throw new Error('Routing server response was not valid JSON');
+  }
+  if(!data.routes || !data.routes.length){
+    throw new Error('No drivable route found between these addresses');
+  }
+  const r = data.routes[0];
+  return {
+    durationMin: Math.round(r.duration/60),
+    distanceMi: r.distance/1609.34,
+    source: 'osrm'
+  };
+}
+
+/* ---------------- Corridor detection ----------------
+   detectPossibleCorridors: a geometry heuristic for which corridor(s)
+   a trip COULD plausibly use — not a routing engine, just a rough
+   "is this trip anywhere near I-66 ITB / I-395" check. Used to decide
+   which options to show as selectable in the corridor picker, and as
+   the basis for "Auto" mode.
+   resolveCorridors: applies the user's explicit choice for this route
+   (I-66 only / I-395 only / Both / Auto) on top of that. */
+const DC_CENTER = { lat: 38.9, lon: -77.03 };
+const I66_CORRIDOR = { latMin: 38.85, latMax: 38.93, lonMin: -77.28, lonMax: -77.07 };
+const I395_CORRIDOR = { latMin: 38.78, latMax: 38.90, lonMin: -77.09, lonMax: -77.02 };
+
+function detectPossibleCorridors(route){
+  const corridors = [];
+  const fromLon = route.from.lon, toLon = route.to.lon;
+  const fromLat = route.from.lat, toLat = route.to.lat;
+
+  // West of the city, roughly along the 66 corridor latitude band
+  const westSide = Math.min(fromLon, toLon) < -77.15;
+  // South/west of the city near 395 alignment (Annandale/Springfield/Alexandria side)
+  const southwestSide = (fromLat < 38.86 || toLat < 38.86);
+
+  if(westSide) corridors.push('I-66');
+  if(southwestSide) corridors.push('I-395');
+  if(!corridors.length) corridors.push('I-66'); // sensible default for NoVA->DC
+  return corridors;
+}
+
+function resolveCorridors(route){
+  const possible = detectPossibleCorridors(route);
+  const choice = route.userCorridor || 'auto';
+  if(choice === 'auto') return possible;
+  if(choice === 'both') return possible.length ? possible : ['I-66','I-395'];
+  // user picked a specific corridor explicitly — honor it even if our
+  // geometry heuristic didn't flag it, since the heuristic is rough
+  // and the person likely knows their own commute better than it does.
+  return [choice];
+}
+
+/* ---------------- Corridor picker UI ----------------
+   Lets the person override which corridor(s) to price for this specific
+   saved route — e.g. "I always take 395, don't bother guessing." The
+   choice is stored per-route (route.userCorridor) so different saved
+   trips can each remember their own preference. */
+function renderCorridorPicker(route){
+  const picker = document.getElementById('corridorPicker');
+  const wrap = document.getElementById('corridorOptions');
+  const possible = detectPossibleCorridors(route);
+
+  // Always show the picker — the app only knows about two corridors
+  // total (I-66 and I-395), so letting the person pin down "I always
+  // take X" or compare "Both" is useful even when the geometry heuristic
+  // only flagged one as likely.
+  picker.style.display = 'flex';
+
+  const options = [
+    { key:'auto',  label:'Auto' },
+    { key:'I-66',  label:'I-66' },
+    { key:'I-395', label:'I-395' },
+    { key:'both',  label:'Both' }
+  ];
+  const current = route.userCorridor || 'auto';
+
+  wrap.innerHTML = '';
+  options.forEach(opt => {
+    // A specific corridor pill is only disabled if our geometry check
+    // is confident the trip never goes near it — but we still let the
+    // person force it, since they know their own commute better than
+    // a lat/lon heuristic does. So nothing is ever truly unclickable,
+    // just visually muted as "probably not relevant."
+    const probablyIrrelevant = (opt.key === 'I-66' || opt.key === 'I-395')
+      && possible.length > 0 && !possible.includes(opt.key);
+
+    const pill = document.createElement('div');
+    pill.className = 'corridor-pill'
+      + (current === opt.key ? ' active' : '')
+      + (probablyIrrelevant ? ' disabled' : '');
+    pill.textContent = opt.label;
+    pill.title = probablyIrrelevant ? "Doesn't look like this route normally uses this corridor — tap to force it anyway" : '';
+    pill.onclick = () => {
+      route.userCorridor = opt.key;
+      saveRoutes();
+      renderCorridorPicker(route);
+      refreshAll();
+    };
+    wrap.appendChild(pill);
+  });
+}
+
+/* ---------------- Toll time windows & typical pricing model ----------------
+   I-66 ITB: weekdays only, EB 5:30-9:30am, WB 3-7pm.
+   I-395/95 Express Lanes: 24/7 dynamic, roughly $2-15 typical, spikes to $20+.
+   These are modeled curves based on publicly reported typical/average pricing,
+   used as the estimate fallback whenever a live read isn't available. */
+
+function isWeekday(d){ const day = d.getDay(); return day >= 1 && day <= 5; }
+
+function i66Window(d){
+  const h = d.getHours() + d.getMinutes()/60;
+  if(!isWeekday(d)) return null;
+  if(h >= 5.5 && h < 9.5) return 'EB';
+  if(h >= 15 && h < 19) return 'WB';
+  return null;
+}
+
+function i66TypicalPrice(d){
+  const win = i66Window(d);
+  if(!win) return { open:false };
+  const h = d.getHours() + d.getMinutes()/60;
+  // Peak-shaped curve within each window, peaking near the middle-late of the window
+  let peakCenter = win === 'EB' ? 8.0 : 17.3;
+  let halfWidth = win === 'EB' ? 2.0 : 2.0;
+  const dist = Math.abs(h - peakCenter) / halfWidth;
+  const intensity = Math.max(0, 1 - dist*dist*0.65);
+  const base = 3.75;
+  const peak = 32;
+  let price = base + (peak - base) * Math.pow(intensity, 1.4);
+  price = Math.round(price * 4) / 4; // nearest quarter, like real signage
+  return { open:true, direction: win, price: Math.max(2.5, price) };
+}
+
+function i395TypicalPrice(d, distanceMi){
+  // 24/7 dynamic, but with clear AM/PM peaks toward DC / away from DC
+  const h = d.getHours() + d.getMinutes()/60;
+  const weekday = isWeekday(d);
+  let intensity;
+  if(weekday){
+    const amDist = Math.abs(h - 7.75)/2.0;
+    const pmDist = Math.abs(h - 17.0)/2.2;
+    const amPeak = Math.max(0, 1 - amDist*amDist*0.6);
+    const pmPeak = Math.max(0, 1 - pmDist*pmDist*0.6);
+    intensity = Math.max(amPeak, pmPeak);
+  } else {
+    intensity = 0.12;
+  }
+  const perMileBase = 0.35;
+  const perMilePeak = 1.55;
+  const rate = perMileBase + (perMilePeak - perMileBase) * Math.pow(intensity, 1.3);
+  let price = rate * Math.max(distanceMi, 1.5);
+  price = Math.max(1.25, Math.round(price * 4) / 4);
+  return { open:true, price, intensity };
+}
+
+/* ---------------- Live I-66 attempt (best-effort) ----------------
+   NOTE: I have not been able to confirm a stable, public endpoint
+   for vai66tolls.com's live pricing data from this environment (it's
+   a JS-driven calculator backed by an undocumented API; testing it
+   needs a real browser's network inspector, which I don't have here).
+   This function is a hook for that — wire in the real endpoint once
+   you've found it (open vai66tolls.com in Safari/Chrome, use "Inspect"
+   or a proxy like Charles/Proxyman, run the calculator, and copy the
+   request URL it fires). Until then this safely returns null every
+   time, so the app always falls back to the typical-pricing model
+   below — nothing is faked or guessed in its place. */
+async function tryLiveI66(){
+  return null; // not yet wired to a confirmed endpoint — see note above
+}
+
+/* ---------------- Main refresh ---------------- */
+let lastRouteCalc = null;
+
+async function refreshAll(){
+  const route = activeRoute();
+  document.getElementById('fromText').textContent = route.from.text;
+  document.getElementById('toText').textContent = route.to.text;
+
+  renderCorridorPicker(route);
+  const corridors = resolveCorridors(route);
+  const when = currentWhen();
+
+  renderMetaLoading(corridors);
+  renderSignsLoading(corridors);
+  renderLanesLoading();
+
+  // Distance/time for the free (non-toll) route, and toll-route estimate
+  let driveInfo;
+  let driveError = null;
+  try{
+    driveInfo = await getRoute(route.from, route.to);
+  }catch(e){
+    driveInfo = null;
+    driveError = e && e.message ? e.message : String(e);
+  }
+
+  renderMeta(driveInfo, corridors);
+
+  const tollResults = await computeTolls(corridors, when, driveInfo);
+  renderSigns(tollResults, when);
+  try{
+    renderLanes(tollResults, driveInfo, when, driveError);
+  }catch(e){
+    document.getElementById('lanesWrap').innerHTML += `<div class="lane" style="border-color:#c4502a;"><div class="lane-body"><div class="lane-name" style="color:#e2643a;">renderLanes crashed</div><div class="lane-detail" style="word-break:break-word;">${e.message}</div></div></div>`;
+  }
+}
+
+function currentWhen(){
+  if(whenMode === 'now') return new Date();
+  const val = document.getElementById('customTime').value;
+  if(!val) return new Date();
+  return new Date(val);
+}
+
+function renderMetaLoading(corridors){
+  document.getElementById('routeMeta').innerHTML =
+    `<span><b>…</b> mi</span><span><b>${corridors.join(' / ')}</b> corridor</span>`;
+}
+function renderMeta(driveInfo, corridors){
+  const miles = driveInfo ? driveInfo.distanceMi.toFixed(1) : '—';
+  document.getElementById('routeMeta').innerHTML =
+    `<span><b>${miles}</b> mi</span><span><b>${corridors.join(' / ')}</b> corridor</span>`;
+}
+
+function renderSignsLoading(corridors){
+  const wrap = document.getElementById('signsWrap');
+  wrap.innerHTML = corridors.map(c => `
+    <div class="toll-sign">
+      <div class="sign-top">
+        <div class="sign-route">${c} Express Lanes</div>
+        <div class="sign-status estimate">checking</div>
+      </div>
+      <div class="sign-price-row">
+        <span class="sign-dollar">$</span>
+        <span class="sign-price">··</span>
+      </div>
+      <div class="sign-sub">Reading current pricing…</div>
+    </div>
+  `).join('');
+}
+
+async function computeTolls(corridors, when, driveInfo){
+  const results = [];
+  for(const corridor of corridors){
+    if(corridor === 'I-66'){
+      const typical = i66TypicalPrice(when);
+      if(!typical.open){
+        results.push({ corridor, open:false, reason:'Outside tolled hours (weekdays 5:30–9:30am EB, 3–7pm WB)' });
+        continue;
+      }
+      let live = null;
+      const isNow = Math.abs(new Date() - when) < 5*60*1000;
+      if(isNow) live = await tryLiveI66();
+      results.push({
+        corridor, open:true,
+        price: live !== null ? live : typical.price,
+        isLive: live !== null,
+        direction: typical.direction
+      });
+    } else if(corridor === 'I-395'){
+      const dist = driveInfo ? Math.min(driveInfo.distanceMi, 8) : 6;
+      const typical = i395TypicalPrice(when, dist);
+      results.push({
+        corridor, open:true,
+        price: typical.price,
+        isLive: false,
+        intensity: typical.intensity
+      });
+    }
+  }
+  return results;
+}
+
+function renderSigns(results, when){
+  const wrap = document.getElementById('signsWrap');
+  wrap.innerHTML = '';
+  results.forEach(r => {
+    const sign = document.createElement('div');
+    if(!r.open){
+      sign.className = 'toll-sign closed';
+      sign.innerHTML = `
+        <div class="sign-top">
+          <div class="sign-route">${r.corridor} Express Lanes</div>
+          <div class="sign-status closed">No toll</div>
+        </div>
+        <div class="sign-price-row">
+          <span class="sign-price" style="font-size:32px;">FREE TO USE</span>
+        </div>
+        <div class="sign-sub">${r.reason}</div>
+      `;
+    } else {
+      sign.className = 'toll-sign';
+      const statusClass = r.isLive ? 'live' : 'estimate';
+      const statusText = r.isLive ? 'Live' : 'Typical';
+      const dirNote = r.direction ? ` · ${r.direction === 'EB' ? 'Eastbound (to DC)' : 'Westbound (from DC)'}` : '';
+      sign.innerHTML = `
+        <div class="sign-top">
+          <div class="sign-route">${r.corridor} Express Lanes</div>
+          <div class="sign-status ${statusClass}">${statusText}</div>
+        </div>
+        <div class="sign-price-row">
+          <span class="sign-dollar">$</span>
+          <span class="sign-price flicker">${r.price.toFixed(2)}</span>
+        </div>
+        <div class="sign-sub"><b>${fmtTime(when)}</b>${dirNote} — ${r.isLive ? 'live from VDOT' : 'based on typical pricing for this time'}</div>
+      `;
+    }
+    wrap.appendChild(sign);
+  });
+}
+
+function fmtTime(d){
+  return d.toLocaleTimeString('en-US', { hour:'numeric', minute:'2-digit' });
+}
+
+function renderLanesLoading(){
+  document.getElementById('lanesWrap').innerHTML = `
+    <div class="lane"><div class="lane-icon toll">🛣️</div>
+      <div class="lane-body"><div class="lane-name">Express Lanes</div><div class="lane-detail">Calculating…</div></div>
+      <div class="lane-time"><div class="min">··</div></div></div>
+    <div class="lane"><div class="lane-icon free">🚗</div>
+      <div class="lane-body"><div class="lane-name">No-Toll Route</div><div class="lane-detail">Calculating…</div></div>
+      <div class="lane-time"><div class="min">··</div></div></div>
+  `;
+  document.getElementById('verdict').textContent = '';
+}
+
+function renderLanes(tollResults, driveInfo, when, driveError){
+  const wrap = document.getElementById('lanesWrap');
+  const baseMin = driveInfo ? driveInfo.durationMin : null;
+  const verdictEl = document.getElementById('verdict');
+
+  if(baseMin === null){
+    wrap.innerHTML = `
+      <div class="lane"><div class="lane-icon free">🚗</div>
+        <div class="lane-body"><div class="lane-name">Drive time unavailable</div><div class="lane-detail">—</div></div>
+        <div class="lane-time"><div class="min">—</div></div></div>
+    `;
+    verdictEl.className = 'verdict bad';
+    verdictEl.innerHTML = `Couldn't calculate drive time. Reason: <b>${driveError || 'unknown error'}</b><br><span style="font-size:12px;">If this keeps happening, the free routing server may be temporarily blocking this device/network — try again in a minute, or on a different network.</span>`;
+    return;
+  }
+
+  // Each open toll corridor becomes its OWN lane — these are alternative
+  // ways to make the trip, not stacked tolls on a single trip. "Both"
+  // means "show me each option side by side," not "pay both."
+  // baseMin (from the routing engine) reflects the FAST, toll-paying trip.
+  // The free-route time is modeled as slower by an amount that scales
+  // with how congested/expensive the toll currently is.
+  const openTolls = tollResults.filter(r => r.open);
+  const lanes = openTolls.map(r => {
+    const intensity = r.price / 30;
+    const savingsFactor = Math.min(0.42, 0.12 + intensity*0.32);
+    const freeEquivalent = Math.round(baseMin * (1 + savingsFactor*0.9));
+    return {
+      corridor: r.corridor,
+      tollMin: baseMin,
+      freeMinEquivalent: freeEquivalent,
+      minSaved: freeEquivalent - baseMin,
+      price: r.price
+    };
+  });
+
+  // The displayed "No-Toll Route" time should reflect the SLOWEST
+  // (most pessimistic) free-route estimate across whichever corridors
+  // are being compared — that's the honest worst case if you skip
+  // every toll option shown. If no toll is open, the free route is
+  // just the normal drive time.
+  const freeMin = lanes.length
+    ? Math.max(...lanes.map(l => l.freeMinEquivalent))
+    : baseMin;
+
+  // Best toll option (most minutes saved per dollar) gets the "winner" highlight,
+  // but only if it actually beats the free route.
+  let bestLane = null;
+  lanes.forEach(l => {
+    if(l.minSaved > 0 && (!bestLane || l.minSaved > bestLane.minSaved)) bestLane = l;
+  });
+
+  let html = '';
+  lanes.forEach(l => {
+    const isWinner = bestLane && l.corridor === bestLane.corridor;
+    html += `
+      <div class="lane ${isWinner ? 'winner':''}">
+        <div class="lane-icon toll">🛣️</div>
+        <div class="lane-body">
+          <div class="lane-name">${l.corridor} Express</div>
+          <div class="lane-detail">Pay toll, skip congestion</div>
+        </div>
+        <div class="lane-time">
+          <div class="min">${l.tollMin} <span>min</span></div>
+          <div class="cost">$${l.price.toFixed(2)}</div>
+        </div>
+      </div>
+    `;
+  });
+
+  const noTollIsWinner = !bestLane;
+  html += `
+    <div class="lane ${noTollIsWinner ? 'winner':''}">
+      <div class="lane-icon free">🚗</div>
+      <div class="lane-body">
+        <div class="lane-name">No-Toll Route</div>
+        <div class="lane-detail">General lanes, no toll</div>
+      </div>
+      <div class="lane-time">
+        <div class="min">${freeMin} <span>min</span></div>
+        <div class="cost">$0.00</div>
+      </div>
+    </div>
+  `;
+  wrap.innerHTML = html;
+
+  if(!openTolls.length){
+    verdictEl.className = 'verdict';
+    verdictEl.innerHTML = `No toll is active on this corridor at this time — <b>just take whichever route is faster</b> on your map app.`;
+    return;
+  }
+
+  if(lanes.length > 1){
+    // Comparing multiple corridors against each other AND the free route.
+    const sorted = [...lanes].sort((a,b) => b.minSaved - a.minSaved);
+    const best = sorted[0];
+    if(best.minSaved > 0){
+      const perMin = best.price / best.minSaved;
+      verdictEl.className = 'verdict';
+      verdictEl.innerHTML = `<b>${best.corridor}</b> looks like the better toll option right now — paying $${best.price.toFixed(2)} saves about <b>${best.minSaved} minutes</b> ($${perMin.toFixed(2)}/min) versus the free route.`;
+    } else {
+      verdictEl.className = 'verdict bad';
+      verdictEl.innerHTML = `Neither toll option looks worth it right now — the <b>free route</b> is about as fast.`;
+    }
+    return;
+  }
+
+  // Single corridor case (original behavior)
+  const l = lanes[0];
+  if(l.minSaved > 0){
+    const perMin = l.price / l.minSaved;
+    verdictEl.className = 'verdict';
+    verdictEl.innerHTML = `Paying <b>$${l.price.toFixed(2)}</b> saves you about <b>${l.minSaved} minutes</b> — roughly $${perMin.toFixed(2)} per minute saved.`;
+  } else {
+    verdictEl.className = 'verdict bad';
+    verdictEl.innerHTML = `At this time, the toll lane <b>isn't likely to save meaningful time</b> — the free route may be just as fast.`;
+  }
+}
+
+/* ---------------- Source note ---------------- */
+function renderSourceNote(){
+  document.getElementById('sourceNote').innerHTML =
+    `<span class="dot est"></span>All prices are typical estimates from time-of-day patterns — live VDOT pricing isn't connected yet.<br>Estimates only — actual tolls may vary. Not affiliated with VDOT or Transurban.`;
+}
+
+/* ---------------- Init ---------------- */
+window.addEventListener('error', (e) => {
+  // Surface any uncaught error directly on screen — this bug has been
+  // hard to reproduce in testing, so if something is silently throwing
+  // in a real browser, this makes it visible instead of failing quietly.
+  const wrap = document.getElementById('lanesWrap');
+  if(wrap){
+    wrap.innerHTML += `<div class="lane" style="border-color:#c4502a;"><div class="lane-body"><div class="lane-name" style="color:#e2643a;">Script error</div><div class="lane-detail" style="word-break:break-word;">${(e.message||'unknown')} (line ${e.lineno||'?'})</div></div></div>`;
+  }
+});
+window.addEventListener('unhandledrejection', (e) => {
+  const wrap = document.getElementById('lanesWrap');
+  if(wrap){
+    wrap.innerHTML += `<div class="lane" style="border-color:#c4502a;"><div class="lane-body"><div class="lane-name" style="color:#e2643a;">Async error</div><div class="lane-detail" style="word-break:break-word;">${(e.reason && e.reason.message) || e.reason || 'unknown'}</div></div></div>`;
+  }
+});
+
+renderTabs();
+renderSourceNote();
+refreshGearState();
+refreshAll();
+setInterval(() => { if(whenMode === 'now') refreshAll(); }, 60000);
+</script>
+</body>
+</html>
